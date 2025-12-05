@@ -13,11 +13,13 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Login attempt:', email);
     try {
       await login({ email, password });
+      console.log('Login successful, redirecting...');
       router.push('/dashboard');
     } catch (err) {
-      // Error is handled by store
+      console.error('Login error:', err);
     }
   };
 
@@ -45,7 +47,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 bg-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
           </div>
 
@@ -58,7 +60,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 bg-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
           </div>
 
