@@ -18,7 +18,7 @@ class ChatService:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self.model = "claude-3-5-sonnet-20241022"
+        self.model = "claude-3-haiku-20240307"
 
     async def get_or_create_session(
         self, user_id: str, context_type: str, context_id: Optional[str] = None
