@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useExerciseStore } from '@/stores/exerciseStore';
+import { useChatStore } from '@/stores/chatStore';
 import CodeEditor from './CodeEditor';
 import ExerciseResults from './ExerciseResults';
 
@@ -18,11 +19,11 @@ export default function ExerciseView({ exerciseId }: ExerciseViewProps) {
     loadExercise,
     setEditorCode,
     submitCode,
-    requestHint,
     error,
   } = useExerciseStore();
 
-  const [showHint, setShowHint] = useState<string | null>(null);
+  const { getHint } = useChatStore();
+  const [hintLevel, setHintLevel] = useState(1);
 
   useEffect(() => {
     loadExercise(exerciseId);
@@ -36,10 +37,10 @@ export default function ExerciseView({ exerciseId }: ExerciseViewProps) {
 
   const handleHint = async () => {
     try {
-      const hint = await requestHint(exerciseId, 1);
-      setShowHint(hint);
+      await getHint(exerciseId, hintLevel, editorCode);
+      setHintLevel((prev) => prev + 1);
     } catch (err) {
-      // Error handled by store
+      console.error('Failed to get hint:', err);
     }
   };
 
@@ -65,13 +66,6 @@ export default function ExerciseView({ exerciseId }: ExerciseViewProps) {
             {currentExercise.prompt}
           </p>
         </div>
-
-        {showHint && (
-          <div className="mt-3 rounded-lg bg-yellow-50 p-4">
-            <p className="text-sm font-medium text-yellow-900">💡 Hint:</p>
-            <p className="mt-1 text-yellow-800">{showHint}</p>
-          </div>
-        )}
 
         {error && (
           <div className="mt-3 rounded-lg bg-red-50 p-4">
@@ -107,7 +101,7 @@ export default function ExerciseView({ exerciseId }: ExerciseViewProps) {
           onClick={handleHint}
           className="rounded-lg border border-gray-300 px-6 py-2 font-medium text-gray-700 hover:bg-gray-50"
         >
-          💡 Get Hint
+          💡 Get Hint {hintLevel > 1 ? `(${hintLevel})` : ''}
         </button>
 
         <div className="flex-1" />
