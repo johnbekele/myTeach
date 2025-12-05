@@ -10,6 +10,7 @@ from app.models.exercise import (
     ExerciseResultResponse,
     ExerciseAttemptInDB
 )
+from app.services.grading_service import grade_exercise
 
 router = APIRouter(prefix="/exercises", tags=["Exercises"])
 
@@ -100,9 +101,15 @@ async def submit_exercise(
     result = await db.exercise_attempts.insert_one(attempt)
     submission_id = str(result.inserted_id)
 
-    # TODO: Queue grading job (Phase 3)
-    # For now, return pending status
-    # background_tasks.add_task(grade_exercise, submission_id, exercise, submission.code)
+    # Queue grading job in background
+    background_tasks.add_task(
+        grade_exercise,
+        db,
+        submission_id,
+        exercise_id,
+        submission.code,
+        submission.language
+    )
 
     return {
         "submission_id": submission_id,
