@@ -8,7 +8,6 @@ from bson import ObjectId
 from datetime import datetime
 
 from app.config import get_settings
-from app.models.chat import ChatMessage, ChatSession
 
 settings = get_settings()
 
