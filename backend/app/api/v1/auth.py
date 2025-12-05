@@ -140,29 +140,37 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     }
 
 
+class ProfileUpdate(BaseModel):
+    full_name: str
+
+
+class SettingsUpdate(BaseModel):
+    settings: dict
+
+
 @router.put("/profile")
 async def update_profile(
-    full_name: str,
+    data: ProfileUpdate,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Update user profile"""
     await db.users.update_one(
         {"_id": current_user["_id"]},
-        {"$set": {"full_name": full_name}}
+        {"$set": {"full_name": data.full_name}}
     )
     return {"message": "Profile updated successfully"}
 
 
 @router.put("/settings")
 async def update_settings(
-    settings: dict,
+    data: SettingsUpdate,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Update user settings"""
     await db.users.update_one(
         {"_id": current_user["_id"]},
-        {"$set": {"settings": settings}}
+        {"$set": {"settings": data.settings}}
     )
     return {"message": "Settings updated successfully"}
