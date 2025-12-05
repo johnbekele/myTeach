@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
+from pydantic import BaseModel
 from app.dependencies import get_db, get_current_user
 from app.models.user import (
     UserCreate,
@@ -138,3 +139,39 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         "created_at": current_user.get("created_at"),
         "last_login": current_user.get("last_login")
     }
+
+
+class ProfileUpdate(BaseModel):
+    full_name: str
+
+
+class SettingsUpdate(BaseModel):
+    settings: dict
+
+
+@router.put("/profile")
+async def update_profile(
+    data: ProfileUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Update user profile"""
+    await db.users.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"full_name": data.full_name}}
+    )
+    return {"message": "Profile updated successfully"}
+
+
+@router.put("/settings")
+async def update_settings(
+    data: SettingsUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Update user settings"""
+    await db.users.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"settings": data.settings}}
+    )
+    return {"message": "Settings updated successfully"}

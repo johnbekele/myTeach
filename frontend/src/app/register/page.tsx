@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, isLoading, error } = useAuthStore();
+  const { register, login, isLoading, error } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -17,8 +17,11 @@ export default function RegisterPage() {
     console.log('Register attempt:', email);
     try {
       await register({ email, password, full_name: fullName });
-      console.log('Registration successful, redirecting to login...');
-      router.push('/login');
+      console.log('Registration successful, logging in...');
+      // Auto-login after registration
+      await login({ email, password });
+      console.log('Auto-login successful, redirecting to onboarding...');
+      router.push('/onboarding');
     } catch (err) {
       console.error('Registration error:', err);
     }

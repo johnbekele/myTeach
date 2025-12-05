@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useNodeStore } from '@/stores/nodeStore';
 import AppLayout from '@/components/layout/AppLayout';
+import { api } from '@/lib/api';
 
 export default function NodeDetailPage({
   params,
@@ -15,6 +16,7 @@ export default function NodeDetailPage({
   const { isAuthenticated, isLoading, loadUser } = useAuthStore();
   const { currentNode, selectNode, startNode } = useNodeStore();
   const router = useRouter();
+  const [isStarting, setIsStarting] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -33,9 +35,37 @@ export default function NodeDetailPage({
   }, [isAuthenticated, nodeId, selectNode]);
 
   const handleStartNode = async () => {
-    await startNode(nodeId);
-    // Reload node to get updated status
-    selectNode(nodeId);
+    try {
+      setIsStarting(true);
+      console.log('Starting AI learning session for node:', nodeId);
+
+      // Start AI-driven learning session
+      const response = await api.startLearningSession(nodeId);
+      console.log('AI session started:', response);
+
+      // Navigate based on AI's decision
+      if (response.content_id) {
+        // AI generated content - show learning view
+        console.log('Navigating to content:', response.content_id);
+        router.push(`/learn/${nodeId}?content=${response.content_id}`);
+      } else if (response.exercise_id) {
+        // AI jumped straight to exercise
+        console.log('Navigating to exercise:', response.exercise_id);
+        router.push(`/exercise/${response.exercise_id}`);
+      } else {
+        // Default to learning session view with chat
+        console.log('Navigating to learning session view');
+        router.push(`/learn/${nodeId}`);
+      }
+    } catch (error) {
+      console.error('Failed to start learning:', error);
+      setIsStarting(false);
+      // Show error to user
+      alert('Failed to start AI learning session. Falling back to basic mode.');
+      // Fallback: just mark node as started
+      await startNode(nodeId);
+      selectNode(nodeId);
+    }
   };
 
   if (isLoading || !currentNode) {
@@ -123,9 +153,20 @@ export default function NodeDetailPage({
 
         <button
           onClick={handleStartNode}
-          className="w-full rounded-lg bg-primary-600 py-3 font-medium text-white hover:bg-primary-700"
+          disabled={isStarting}
+          className="w-full rounded-lg bg-primary-600 py-3 font-medium text-white hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
         >
-          Start Learning
+          {isStarting ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Starting AI Teacher...
+            </>
+          ) : (
+            'Start Learning'
+          )}
         </button>
       </div>
     </AppLayout>

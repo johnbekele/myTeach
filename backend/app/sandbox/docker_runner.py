@@ -17,6 +17,9 @@ class DockerSandbox:
     def __init__(self):
         try:
             self.client = docker.from_env()
+            # Test connection
+            self.client.ping()
+            print("✅ Docker client connected")
         except Exception as e:
             print(f"⚠️  Docker client initialization failed: {e}")
             self.client = None

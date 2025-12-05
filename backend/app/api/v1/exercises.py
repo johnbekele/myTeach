@@ -84,7 +84,6 @@ async def submit_exercise(
 
     # Create attempt record
     attempt = {
-        "_id": str(ObjectId()),
         "user_id": user_id,
         "exercise_id": exercise_id,
         "attempt_number": attempt_count + 1,
@@ -128,7 +127,7 @@ async def get_exercise_result(
     """Get exercise grading result"""
 
     attempt = await db.exercise_attempts.find_one({
-        "_id": submission_id,
+        "_id": ObjectId(submission_id),
         "user_id": user_id,
         "exercise_id": exercise_id
     })

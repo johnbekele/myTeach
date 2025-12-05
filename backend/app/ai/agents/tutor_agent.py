@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.ai.chat_service import ChatService
 from app.ai.prompts.system_prompts import get_system_prompt
+from app.api.v1.user_context import get_user_context_for_ai
 
 
 class TutorAgent:
@@ -14,6 +15,21 @@ class TutorAgent:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.chat_service = ChatService(db)
+
+    async def _get_enhanced_system_prompt(self, user_id: str, base_prompt_type: str = "tutor") -> str:
+        """Get system prompt enhanced with user context"""
+        base_prompt = get_system_prompt(base_prompt_type)
+        user_context = await get_user_context_for_ai(self.db, user_id)
+
+        # Enhance prompt with user context
+        enhanced_prompt = f"""{base_prompt}
+
+USER CONTEXT:
+{user_context}
+
+Use this context to personalize your responses, examples, and teaching approach. Reference their background, goals, and learning preferences when appropriate. If they have mentioned specific challenges (e.g., ADHD), adapt your communication style accordingly."""
+
+        return enhanced_prompt
 
     async def ask_question(
         self,
@@ -38,8 +54,8 @@ class TutorAgent:
             user_id=user_id, context_type=context_type, context_id=context_id
         )
 
-        # Get tutor system prompt
-        system_prompt = get_system_prompt("tutor")
+        # Get enhanced system prompt with user context
+        system_prompt = await self._get_enhanced_system_prompt(user_id, "tutor")
 
         # Send message and get response
         response = await self.chat_service.send_message(
@@ -69,7 +85,7 @@ class TutorAgent:
             user_id=user_id, context_type="concept", context_id=concept
         )
 
-        system_prompt = get_system_prompt("tutor")
+        system_prompt = await self._get_enhanced_system_prompt(user_id, "tutor")
 
         response = await self.chat_service.send_message(
             user_id=user_id,
@@ -100,7 +116,7 @@ class TutorAgent:
             user_id=user_id, context_type="exercise", context_id=exercise_id
         )
 
-        system_prompt = get_system_prompt("tutor")
+        system_prompt = await self._get_enhanced_system_prompt(user_id, "tutor")
 
         response = await self.chat_service.send_message(
             user_id=user_id,
@@ -126,7 +142,7 @@ class TutorAgent:
             user_id=user_id, context_type="encouragement"
         )
 
-        system_prompt = get_system_prompt("tutor")
+        system_prompt = await self._get_enhanced_system_prompt(user_id, "tutor")
 
         response = await self.chat_service.send_message(
             user_id=user_id,
