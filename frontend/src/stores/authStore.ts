@@ -24,18 +24,23 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
 
   login: async (credentials) => {
+    console.log('Store: Starting login...');
     set({ isLoading: true, error: null });
     try {
       const data = await api.login(credentials);
+      console.log('Store: Login successful, user:', data.user);
       set({
         user: data.user,
         token: data.access_token,
         isAuthenticated: true,
         isLoading: false,
       });
+      console.log('Store: Auth state updated');
     } catch (error: any) {
+      console.error('Store: Login error:', error);
+      const errorMsg = error.response?.data?.detail || 'Login failed';
       set({
-        error: error.response?.data?.detail || 'Login failed',
+        error: errorMsg,
         isLoading: false,
       });
       throw error;

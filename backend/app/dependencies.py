@@ -1,7 +1,9 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer
+from fastapi.security.http import HTTPAuthorizationCredentials
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
+from bson import ObjectId
 from app.db.mongodb import get_database
 from app.db.redis import get_redis
 from app.utils.security import decode_access_token
@@ -21,7 +23,7 @@ async def get_redis_client() -> Redis:
 
 
 async def get_current_user(
-    credentials: HTTPAuthCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> dict:
     """
@@ -39,8 +41,11 @@ async def get_current_user(
     if token_data is None:
         raise credentials_exception
 
-    # Get user from database
-    user = await db.users.find_one({"_id": token_data.user_id})
+    # Get user from database (convert string ID to ObjectId)
+    try:
+        user = await db.users.find_one({"_id": ObjectId(token_data.user_id)})
+    except Exception:
+        raise credentials_exception
 
     if user is None:
         raise credentials_exception
@@ -49,7 +54,7 @@ async def get_current_user(
 
 
 async def get_current_user_id(
-    credentials: HTTPAuthCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> str:
     """
     Lightweight dependency to get just user_id from JWT token
