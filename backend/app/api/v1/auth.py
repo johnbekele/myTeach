@@ -138,3 +138,31 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         "created_at": current_user.get("created_at"),
         "last_login": current_user.get("last_login")
     }
+
+
+@router.put("/profile")
+async def update_profile(
+    full_name: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Update user profile"""
+    await db.users.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"full_name": full_name}}
+    )
+    return {"message": "Profile updated successfully"}
+
+
+@router.put("/settings")
+async def update_settings(
+    settings: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Update user settings"""
+    await db.users.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"settings": settings}}
+    )
+    return {"message": "Settings updated successfully"}
