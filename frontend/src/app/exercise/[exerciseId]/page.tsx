@@ -1,6 +1,5 @@
 'use client';
 
-import { use } from 'react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,9 +9,9 @@ import ExerciseView from '@/components/exercise/ExerciseView';
 export default function ExercisePage({
   params,
 }: {
-  params: Promise<{ exerciseId: string }>;
+  params: { exerciseId: string };
 }) {
-  const { exerciseId } = use(params);
+  const { exerciseId } = params;
   const { isAuthenticated, isLoading, loadUser } = useAuthStore();
   const router = useRouter();
 
