@@ -15,11 +15,19 @@ export interface ChatSession {
   isActive: boolean;
 }
 
+export interface AIAction {
+  type: 'navigate' | 'display_content' | 'show_exercise';
+  data: any;
+}
+
 interface ChatState {
   currentSession: ChatSession | null;
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
+  pendingActions: AIAction[];
+  dynamicContentId: string | null;
+  dynamicExerciseId: string | null;
 
   sendMessage: (
     message: string,
@@ -29,6 +37,9 @@ interface ChatState {
   ) => Promise<void>;
   getHint: (exerciseId: string, hintLevel: number, userCode?: string) => Promise<string>;
   loadHistory: (sessionId: string) => Promise<void>;
+  continueLearningSession: (sessionId: string, message: string) => Promise<any>;
+  handleAIResponse: (response: any) => void;
+  clearPendingActions: () => void;
   clearChat: () => void;
   clearError: () => void;
 }
@@ -38,6 +49,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isLoading: false,
   error: null,
+  pendingActions: [],
+  dynamicContentId: null,
+  dynamicExerciseId: null,
 
   sendMessage: async (message, contextType = 'general', contextId, userCode) => {
     set({ isLoading: true, error: null });
@@ -128,11 +142,95 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  continueLearningSession: async (sessionId: string, message: string) => {
+    set({ isLoading: true, error: null });
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+    };
+    set((state) => ({
+      messages: [...state.messages, userMessage],
+    }));
+
+    try {
+      const response = await api.continueLearning(sessionId, message);
+
+      // Add AI response
+      const assistantMessage: ChatMessage = {
+        role: 'assistant',
+        content: response.message,
+        timestamp: new Date().toISOString(),
+      };
+
+      set((state) => ({
+        messages: [...state.messages, assistantMessage],
+        isLoading: false,
+      }));
+
+      // Handle AI actions
+      get().handleAIResponse(response);
+
+      return response;
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.detail || 'Failed to continue learning',
+        isLoading: false,
+      });
+      // Remove optimistic message
+      set((state) => ({
+        messages: state.messages.slice(0, -1),
+      }));
+      throw error;
+    }
+  },
+
+  handleAIResponse: (response: any) => {
+    const actions: AIAction[] = [];
+
+    // Handle content_id
+    if (response.content_id) {
+      set({ dynamicContentId: response.content_id });
+      actions.push({
+        type: 'display_content',
+        data: { content_id: response.content_id },
+      });
+    }
+
+    // Handle exercise_id
+    if (response.exercise_id) {
+      set({ dynamicExerciseId: response.exercise_id });
+      actions.push({
+        type: 'show_exercise',
+        data: { exercise_id: response.exercise_id },
+      });
+    }
+
+    // Handle explicit actions
+    if (response.actions && Array.isArray(response.actions)) {
+      actions.push(...response.actions);
+    }
+
+    // Store actions
+    if (actions.length > 0) {
+      set({ pendingActions: actions });
+    }
+  },
+
+  clearPendingActions: () => {
+    set({ pendingActions: [] });
+  },
+
   clearChat: () => {
     set({
       messages: [],
       currentSession: null,
       error: null,
+      pendingActions: [],
+      dynamicContentId: null,
+      dynamicExerciseId: null,
     });
   },
 

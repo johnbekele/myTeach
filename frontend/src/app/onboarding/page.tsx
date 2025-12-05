@@ -86,7 +86,8 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
+    await loadUser(); // Reload user to get updated onboarding_completed flag
     router.push('/dashboard');
   };
 
@@ -162,7 +163,7 @@ export default function OnboardingPage() {
               <button
                 key={idx}
                 onClick={() => handleAnswer(step - 1, option)}
-                className={`w-full rounded-lg border-2 p-4 text-left transition-all ${
+                className={`w-full rounded-lg border-2 p-4 text-left text-gray-900 transition-all ${
                   currentAnswer?.answer === option
                     ? 'border-primary-600 bg-primary-50'
                     : 'border-gray-300 hover:border-primary-300'

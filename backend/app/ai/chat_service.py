@@ -1,11 +1,12 @@
 """
 Chat service for managing AI conversations with Claude
 """
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable
 from anthropic import AsyncAnthropic
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 from datetime import datetime
+import json
 
 from app.config import get_settings
 
@@ -70,8 +71,24 @@ class ChatService:
         message: str,
         system_prompt: str,
         context_data: Optional[Dict] = None,
+        tools: Optional[List[Dict]] = None,
+        tool_executor: Optional[Callable] = None,
     ) -> Dict:
-        """Send message and get AI response"""
+        """
+        Send message and get AI response with optional tool calling support
+
+        Args:
+            user_id: User ID
+            session_id: Chat session ID
+            message: User message
+            system_prompt: System prompt for Claude
+            context_data: Additional context data
+            tools: List of tool definitions for Claude to use
+            tool_executor: Async function to execute tools: async (tool_name, tool_input) -> str
+
+        Returns:
+            Dict with message, session_id, timestamp, and any tool-generated IDs
+        """
         # Save user message
         user_msg = {
             "session_id": session_id,
@@ -95,15 +112,114 @@ class ChatService:
             context_str = self._format_context(context_data)
             enhanced_system = f"{system_prompt}\n\n{context_str}"
 
-        # Call Claude API
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=2048,
-            system=enhanced_system,
-            messages=messages,
-        )
+        # Track tool results for return
+        tool_results = {
+            "content_id": None,
+            "exercise_id": None,
+            "actions": [],
+        }
 
-        assistant_content = response.content[0].text
+        # Tool calling loop
+        max_iterations = 5  # Prevent infinite loops
+        iteration = 0
+        assistant_content = ""  # Initialize to avoid UnboundLocalError
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            # Call Claude API
+            api_params = {
+                "model": self.model,
+                "max_tokens": 4096,
+                "system": enhanced_system,
+                "messages": messages,
+            }
+
+            # Add tools if provided
+            if tools:
+                api_params["tools"] = tools
+
+            response = await self.client.messages.create(**api_params)
+
+            # Handle different stop reasons
+            if response.stop_reason == "end_turn":
+                # Normal completion - extract final text
+                assistant_content = self._extract_text_content(response.content)
+                break
+
+            elif response.stop_reason == "tool_use" and tool_executor:
+                # Claude wants to use tools
+                # Add assistant's response (including tool calls) to conversation
+                messages.append({
+                    "role": "assistant",
+                    "content": response.content
+                })
+
+                # Execute tools and collect results
+                tool_use_results = []
+
+                for block in response.content:
+                    if block.type == "tool_use":
+                        # Execute the tool
+                        tool_name = block.name
+                        tool_input = block.input
+
+                        print(f"🔧 AI invoking tool: {tool_name}")
+                        print(f"   Input: {json.dumps(tool_input, indent=2)}")
+
+                        try:
+                            result = await tool_executor(tool_name, tool_input)
+                            result_dict = json.loads(result) if isinstance(result, str) else result
+
+                            # Track important IDs from tool execution
+                            if "content_id" in result_dict:
+                                tool_results["content_id"] = result_dict["content_id"]
+                            if "exercise_id" in result_dict:
+                                tool_results["exercise_id"] = result_dict["exercise_id"]
+                            if "navigation" in result_dict:
+                                tool_results["actions"].append({
+                                    "type": "navigate",
+                                    "data": result_dict["navigation"]
+                                })
+
+                            print(f"   ✅ Tool result: {result}")
+
+                            tool_use_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": result
+                            })
+                        except Exception as e:
+                            print(f"   ❌ Tool execution error: {str(e)}")
+                            tool_use_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps({"error": str(e)}),
+                                "is_error": True
+                            })
+
+                # Add tool results to conversation
+                messages.append({
+                    "role": "user",
+                    "content": tool_use_results
+                })
+
+                # Continue loop to get Claude's next response
+                continue
+
+            elif response.stop_reason == "max_tokens":
+                # Hit token limit
+                assistant_content = self._extract_text_content(response.content)
+                assistant_content += "\n\n[Response truncated due to length]"
+                break
+            else:
+                # Unexpected stop reason
+                assistant_content = self._extract_text_content(response.content)
+                break
+
+        # If max iterations reached without setting content
+        if iteration >= max_iterations and not assistant_content:
+            assistant_content = "I've completed the setup for your learning session. Let's begin!"
 
         # Save assistant response
         assistant_msg = {
@@ -123,7 +239,18 @@ class ChatService:
             "message": assistant_content,
             "session_id": session_id,
             "timestamp": datetime.utcnow().isoformat(),
+            **tool_results  # Include content_id, exercise_id, actions
         }
+
+    def _extract_text_content(self, content_blocks) -> str:
+        """Extract text content from Claude response blocks"""
+        text_parts = []
+        for block in content_blocks:
+            if hasattr(block, 'text'):
+                text_parts.append(block.text)
+            elif isinstance(block, dict) and 'text' in block:
+                text_parts.append(block['text'])
+        return "\n".join(text_parts) if text_parts else ""
 
     def _format_context(self, context_data: Dict) -> str:
         """Format context data for system prompt"""

@@ -7,6 +7,7 @@ from bson import ObjectId
 
 from app.ai.chat_service import ChatService
 from app.ai.prompts.system_prompts import get_system_prompt
+from app.api.v1.user_context import get_user_context_for_ai
 
 
 class HintAgent:
@@ -15,6 +16,20 @@ class HintAgent:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.chat_service = ChatService(db)
+
+    async def _get_enhanced_system_prompt(self, user_id: str) -> str:
+        """Get system prompt enhanced with user context"""
+        base_prompt = get_system_prompt("hint")
+        user_context = await get_user_context_for_ai(self.db, user_id)
+
+        enhanced_prompt = f"""{base_prompt}
+
+USER CONTEXT:
+{user_context}
+
+Tailor your hints to match the user's experience level and learning style. If they have specific learning challenges, adjust your language and pacing accordingly."""
+
+        return enhanced_prompt
 
     async def generate_hint(
         self,
@@ -34,8 +49,8 @@ class HintAgent:
             user_code: Student's current code
             previous_attempts: Number of failed attempts
         """
-        # Get exercise details
-        exercise = await self.db.exercises.find_one({"_id": ObjectId(exercise_id)})
+        # Get exercise details (exercises use exercise_id string, not _id ObjectId)
+        exercise = await self.db.exercises.find_one({"exercise_id": exercise_id})
         if not exercise:
             raise ValueError("Exercise not found")
 
@@ -61,8 +76,8 @@ class HintAgent:
             "previous_attempts": previous_attempts,
         }
 
-        # Get hint from AI
-        system_prompt = get_system_prompt("hint")
+        # Get hint from AI with enhanced prompt
+        system_prompt = await self._get_enhanced_system_prompt(user_id)
         response = await self.chat_service.send_message(
             user_id=user_id,
             session_id=session_id,

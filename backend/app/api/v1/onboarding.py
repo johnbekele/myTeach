@@ -149,6 +149,38 @@ async def submit_assessment(
         },
     )
 
+    # Create initial user context from assessment
+    from datetime import datetime
+
+    initial_context = {
+        "user_id": user_id,
+        "learning": {
+            "learning_motivation": focus_area,
+            "preferred_learning_style": _get_learning_style_from_answers(answers),
+            "available_time_per_week": _get_time_commitment_from_answers(answers),
+        },
+        "free_text_notes": submission.free_text_goals or "",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+
+    # Check if context already exists
+    existing_context = await db.user_context.find_one({"user_id": user_id})
+    if not existing_context:
+        await db.user_context.insert_one(initial_context)
+    else:
+        # Update learning section only
+        await db.user_context.update_one(
+            {"user_id": user_id},
+            {
+                "$set": {
+                    "learning": initial_context["learning"],
+                    "free_text_notes": initial_context["free_text_notes"],
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+
     return LearningPathResponse(
         recommended_level=experience_level,
         starting_nodes=[str(node["_id"]) for node in recommended_nodes],
@@ -257,3 +289,43 @@ def _summarize_assessment(answers: List[AssessmentAnswer]) -> str:
     for answer in answers:
         summary_parts.append(f"Q{answer.question_index + 1}: {answer.answer}")
     return " | ".join(summary_parts)
+
+
+def _get_learning_style_from_answers(answers: List[AssessmentAnswer]) -> str:
+    """Extract learning style from assessment answers"""
+    # Find learning style answer (question index 3)
+    style_answer = next((a for a in answers if a.question_index == 3), None)
+    if not style_answer:
+        return "balanced"
+
+    answer_lower = style_answer.answer.lower()
+    if "step-by-step" in answer_lower or "practice" in answer_lower:
+        return "hands_on_incremental"
+    elif "quick" in answer_lower:
+        return "fast_paced"
+    elif "deep" in answer_lower or "theory" in answer_lower:
+        return "theoretical_comprehensive"
+    elif "real-world" in answer_lower or "projects" in answer_lower:
+        return "project_based"
+    else:
+        return "balanced"
+
+
+def _get_time_commitment_from_answers(answers: List[AssessmentAnswer]) -> int:
+    """Extract time commitment from assessment answers"""
+    # Find time commitment answer (question index 4)
+    time_answer = next((a for a in answers if a.question_index == 4), None)
+    if not time_answer:
+        return 5
+
+    answer_lower = time_answer.answer.lower()
+    if "1-2 hours" in answer_lower:
+        return 2
+    elif "3-5 hours" in answer_lower:
+        return 4
+    elif "6-10 hours" in answer_lower:
+        return 8
+    elif "10+" in answer_lower:
+        return 15
+    else:
+        return 5
