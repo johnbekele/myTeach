@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useNodeStore } from '@/stores/nodeStore';
@@ -9,9 +9,9 @@ import AppLayout from '@/components/layout/AppLayout';
 export default function NodeDetailPage({
   params,
 }: {
-  params: Promise<{ nodeId: string }>;
+  params: { nodeId: string };
 }) {
-  const { nodeId } = use(params);
+  const { nodeId } = params;
   const { isAuthenticated, isLoading, loadUser } = useAuthStore();
   const { currentNode, selectNode, startNode } = useNodeStore();
   const router = useRouter();
